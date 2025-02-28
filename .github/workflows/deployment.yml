@@ -2,46 +2,36 @@ name: Deploy Portfolio
 
 on:
   workflow_dispatch:  # Allows manual execution from GitHub Actions
+  push:
+    branches: [ main ]  # Added automatic trigger on main branch pushes
+
 env:
   DOCKER_USERNAME: gowtham1804
   DOCKER_IMAGE: gowtham1804/portfolio
+  CONTAINER_NAME: portfolio-container
 
 jobs:
-  git-and-docker:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
-      # Git Operations
-      -
-        name: Git Setup
-        run: |
-          git config --global user.name "gowthamr1312"
-          git config --global user.email "gowthamgowda1804@gmail.com"
-      
-      -
+      - 
         name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
-      -
-        name: Git Status Check
-        run: |
-          echo "🔍 Checking Git Status..."
-          git status
-          
-      # Docker Operations
-      -
+      - 
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      -
+      - 
         name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
       
-      -
+      - 
         name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -50,41 +40,28 @@ jobs:
           tags: |
             ${{ env.DOCKER_IMAGE }}:latest
             ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache,mode=max
       
-      # Automated Deployment
-      -
-        name: Deploy Container
-        run: |
-          echo "🚀 Deploying new container..."
-          docker stop finexo-container || true
-          docker rm finexo-container || true
-          docker run -d -p 8083:80 --name finexo-container ${{ env.DOCKER_IMAGE }}:latest
-      
-      # Final Git Operations
-      -
-        name: Check for Changes
-        run: |
-          echo "👀 Checking for new changes..."
-          git status
-          
-      -
-        name: Commit and Push Changes
-        run: |
-          if [[ -n $(git status -s) ]]; then
-            echo "📝 Changes detected, committing..."
-            git add .
-            git commit -m "Automated update from GitHub Actions at $(date '+%Y-%m-%d %H:%M:%S')"
-            git push origin main
-          else
-            echo "✨ No changes to commit"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      -
+      - 
         name: Workflow Summary
         run: |
-          echo "✅ Git operations completed"
-          echo "🐳 Docker image built and pushed"
-          echo "🚀 Deployment successful"
-          echo "🌐 Website is live at: http://localhost:8083"
+          echo "✅ Build completed"
+          echo "🐳 Docker image built and pushed successfully"
+          echo "📌 Image tags:"
+          echo "   - ${{ env.DOCKER_IMAGE }}:latest"
+          echo "   - ${{ env.DOCKER_IMAGE }}:${{ github.sha }}"
+
+  # Note: Actual deployment should be handled separately on your deployment server
+  # The following is a placeholder for documentation purposes
+  # deploy:
+  #   needs: build-and-push
+  #   runs-on: self-hosted  # Would require a self-hosted runner on your deployment server
+  #   steps:
+  #     - 
+  #       name: Deploy Container
+  #       run: |
+  #         docker pull ${{ env.DOCKER_IMAGE }}:latest
+  #         docker stop ${{ env.CONTAINER_NAME }} || true
+  #         docker rm ${{ env.CONTAINER_NAME }} || true
+  #         docker run -d -p 8083:80 --name ${{ env.CONTAINER_NAME }} ${{ env.DOCKER_IMAGE }}:latest
