@@ -1,0 +1,90 @@
+name: Deploy Portfolio
+
+on:
+  workflow_dispatch:  # Allows manual execution from GitHub Actions
+env:
+  DOCKER_USERNAME: gowtham1804
+  DOCKER_IMAGE: gowtham1804/portfolio
+
+jobs:
+  git-and-docker:
+    runs-on: ubuntu-latest
+    steps:
+      # Git Operations
+      -
+        name: Git Setup
+        run: |
+          git config --global user.name "gowthamr1312"
+          git config --global user.email "gowthamgowda1804@gmail.com"
+      
+      -
+        name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      -
+        name: Git Status Check
+        run: |
+          echo "🔍 Checking Git Status..."
+          git status
+          
+      # Docker Operations
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      -
+        name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+      
+      -
+        name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+      
+      # Automated Deployment
+      -
+        name: Deploy Container
+        run: |
+          echo "🚀 Deploying new container..."
+          docker stop finexo-container || true
+          docker rm finexo-container || true
+          docker run -d -p 8083:80 --name finexo-container ${{ env.DOCKER_IMAGE }}:latest
+      
+      # Final Git Operations
+      -
+        name: Check for Changes
+        run: |
+          echo "👀 Checking for new changes..."
+          git status
+          
+      -
+        name: Commit and Push Changes
+        run: |
+          if [[ -n $(git status -s) ]]; then
+            echo "📝 Changes detected, committing..."
+            git add .
+            git commit -m "Automated update from GitHub Actions at $(date '+%Y-%m-%d %H:%M:%S')"
+            git push origin main
+          else
+            echo "✨ No changes to commit"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      -
+        name: Workflow Summary
+        run: |
+          echo "✅ Git operations completed"
+          echo "🐳 Docker image built and pushed"
+          echo "🚀 Deployment successful"
+          echo "🌐 Website is live at: http://localhost:8083"
